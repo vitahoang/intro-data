@@ -1,0 +1,327 @@
+---
+title: "Modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+editor_options: 
+  markdown: 
+    wrap: 80
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+library(GGally)
+library(corrplot)
+library(olsrr)
+```
+
+--------------------------------------------------------------------------------
+
+## Part 1: Data
+
+### Load data
+
+Make sure your data and R Markdown files are in the same directory. When loaded
+your data file will be called `movies`. Delete this note when before you submit
+your work.
+
+```{r load-data}
+load("movies.Rdata")
+```
+
+The data set is comprised of 651 randomly sampled movies produced and released
+before 2016.
+
+Some of these variables are only there for informational purposes and do not
+make any sense to include in a statistical analysis. It is up to you to decide
+which variables are meaningful and which should be omitted. For example
+information in the the `actor1` through `actor5` variables was used to determine
+whether the movie casts an actor or actress who won a best actor or actress
+Oscar.
+
+You might also choose to omit certain observations or restructure some of the
+variables to make them suitable for answering your research questions.
+
+When you are fitting a model you should also be careful about collinearity, as
+some of these variables may be dependent on each other.
+
+### Codebook
+
+1.  `title`: Title of movie
+
+2.  `title_type`: Type of movie (Documentary, Feature Film, TV Movie)
+
+3.  `genre`: Genre of movie (Action & Adventure, Comedy, Documentary, Drama,
+    Horror, Mystery & Suspense, Other)
+
+4.  `runtime`: Runtime of movie (in minutes)
+
+5.  `mpaa_rating`: MPAA rating of the movie (G, PG, PG-13, R, Unrated)
+
+6.  `studio`: Studio that produced the movie
+
+7.  `thtr_rel_year`: Year the movie is released in theaters
+
+8.  `thtr_rel_month`: Month the movie is released in theaters
+
+9.  `thtr_rel_day`: Day of the month the movie is released in theaters
+
+10. `dvd_rel_year`: Year the movie is released on DVD
+
+11. `dvd_rel_month`: Month the movie is released on DVD
+
+12. `dvd_rel_day`: Day of the month the movie is released on DVD
+
+13. `imdb_rating`: Rating on IMDB
+
+14. `imdb_num_votes`: Number of votes on IMDB
+
+15. `critics_rating`: Categorical variable for critics rating on Rotten Tomatoes
+    (Certified Fresh, Fresh, Rotten)
+
+16. `critics_score`: Critics score on Rotten Tomatoes
+
+17. `audience_rating`: Categorical variable for audience rating on Rotten
+    Tomatoes (Spilled, Upright)
+
+18. `audience_score`: Audience score on Rotten Tomatoes
+
+19. `best_pic_nom`: Whether or not the movie was nominated for a best picture
+    Oscar (no, yes)
+
+20. `best_pic_win`: Whether or not the movie won a best picture Oscar (no, yes)
+
+21. `best_actor_win`: Whether or not one of the main actors in the movie ever
+    won an Oscar (no, yes) – note that this is not necessarily whether the actor
+    won an Oscar for their role in the given movie
+
+22. `best_actress win`: Whether or not one of the main actresses in the movie
+    ever won an Oscar (no, yes) – not that this is not necessarily whether the
+    actresses won an Oscar for their role in the given movie
+
+23. `best_dir_win`: Whether or not the director of the movie ever won an Oscar
+    (no, yes) – not that this is not necessarily whether the director won an
+    Oscar for the given movie
+
+24. `top200_box`: Whether or not the movie is in the Top 200 Box Office list on
+    BoxOfficeMojo (no, yes)
+
+25. `director`: Director of the movie
+
+26. `actor1`: First main actor/actress in the abridged cast of the movie
+
+27. `actor2`: Second main actor/actress in the abridged cast of the movie
+
+28. `actor3`: Third main actor/actress in the abridged cast of the movie
+
+29. `actor4`: Fourth main actor/actress in the abridged cast of the movie
+
+30. `actor5`: Fifth main actor/actress in the abridged cast of the movie
+
+31. `imdb_url`: Link to IMDB page for the movie
+
+32. `rt_url`: Link to Rotten Tomatoes page for the movie
+
+--------------------------------------------------------------------------------
+
+## Part 2: Research question
+
+-   What attributes make a movie popular?
+-   anything else new and interesting about movie?
+
+--------------------------------------------------------------------------------
+
+## Part 3: Exploratory data analysis
+
+From research questions above, we need to find the best model that predict
+popularity of a movies. Given the cookbook of the dataset, we can see the
+variable **imdb_num_votes** is the strongest variable that can indicates the
+popularity of a movies. Other variables contained score and rating just show the
+average score/rating of a movie out of a number of voters. While
+**imdb_num_votes** tells us how many people know and rate the film.
+
+Thus we make **imdb_num_votes** to be the response variable of our model. the
+more number of votes a movie receives on imdb platforms, the more popular that
+movie is.
+
+### Clean the dataset
+
+-   Some variables are just information that won't predict anything, so we
+    cannot use in them our analysis:
+
+    -   movie title
+
+    -   director
+
+    -   actor1→5
+
+    -   imdb_url, rt_url
+
+```{r}
+# read the movies table
+glimpse(movies)
+# remove non-predicted variable
+df <- movies[,-c(1,6, 32, 31, 30, 29, 28, 27, 26, 25, 24)]
+```
+
+### Examine response variable
+
+```{r}
+# analyze the response var
+summary(df$imdb_num_votes)
+boxplot(df$imdb_num_votes)
+hist(df$imdb_num_votes,breaks = 200)
+```
+
+Finding
+
+-   The distribution of popularity of movies is extremely right skewed
+
+### Examine "released time"
+
+We examine "released time" variables to find out their relationship with the
+model
+
+```{r}
+plot(x = movies$thtr_rel_year, y = movies$imdb_num_votes)
+plot(x = movies$thtr_rel_month, y = movies$imdb_num_votes)
+plot(x = movies$thtr_rel_day, y = movies$imdb_num_votes)
+plot(x = movies$dvd_rel_year, y = movies$imdb_num_votes)
+plot(x = movies$dvd_rel_month, y = movies$imdb_num_votes)
+plot(x = movies$dvd_rel_day, y = movies$imdb_num_votes)
+```
+
+Finding:
+
+-   The years when a movie is released, both in theaters and on DVD, often
+    indicate its popularity. Movies released more recently tend to receive more
+    ratings.
+
+```{=html}
+<!-- -->
+```
+-   The specific month and day when a movie is released in theaters or on DVD
+    don't provide useful information.
+
+-\> We'll make new variables to store how long ago a movie was released in
+theaters and on DVD. This will help us analyze their relationship in the model
+later
+
+```{r}
+# add "age" variables to the data
+df <- df %>% mutate(thtr_age = 2016 - thtr_rel_year, 
+              dvd_age = 2016 - dvd_rel_year)
+# plot
+plot(y = df$imdb_num_votes, x = df$dvd_age)
+plot(y = df$imdb_num_votes, x = df$thtr_age)
+
+# remove "released time" variables
+df <- df[, -c(5,6,7,8,9,10)]
+```
+
+### Examine categorical variables
+
+##### title_type, genre, mpaa_rating
+
+```{r}
+df_sub1 <- subset(df, select = c(imdb_num_votes, title_type, genre, mpaa_rating))
+ggpairs(df_sub1) 
+```
+
+##### critics_rating, audience_rating
+
+```{r}
+df_sub2 <- subset(df, select = c(imdb_num_votes, critics_rating, audience_rating))
+ggpairs(df_sub2) 
+```
+
+##### best_pic_nom, best_pic_win, best_actor_win, best_actress_win, best_dir_win
+
+```{r}
+df_sub3 <- subset(df, select = c(imdb_num_votes, best_pic_nom, best_pic_win, best_actor_win, best_actress_win, best_dir_win))
+ggpairs(df_sub3) 
+```
+
+### Examine others numerical variables
+
+```{r}
+df_num <- df[, c(3,5,6,8,10)]
+m1 = cor(df_num)
+corrplot(m1, method = 'number')
+ggpairs(df_num) 
+```
+
+Finding:
+
+-   run_time didn't show any significant relationship with any other variables →
+    we can drop this variable from the dataset.
+
+-   imdb_rating, audience_score and critics_scores are highly correlated → we
+    should remove some variables to avoid collinearity. My suggestion is to
+    remove the imdb_rating variable, because the others have lower correlation
+    score. Additionally, audience and critics scores offer distinct
+    perspectives, which adds valuable insight.
+
+```{r}
+df <- df[, -c(3,5)]
+```
+
+--------------------------------------------------------------------------------
+
+## Part 4: Modeling
+
+NOTE: Insert code chunks as needed by clicking on the "Insert a new code chunk"
+button above. Make sure that your code is visible in the project you submit.
+Delete this note when before you submit your work.
+
+```{r}
+m_full <- lm(imdb_num_votes ~ title_type + genre + mpaa_rating + critics_rating + critics_score + audience_rating + audience_score + best_pic_nom + best_pic_win + best_actor_win + best_actress_win + best_dir_win + thtr_age + dvd_age, df)
+summary(m_full)
+```
+
+### Model Selection
+
+We use backward elimination based on R-squared
+
+1.  We remove some variables with very high insignificant p-value
+
+```{r}
+m_full_1 <- lm(imdb_num_votes ~ genre + critics_rating + critics_score + audience_rating + audience_score + best_pic_nom + best_pic_win + best_actor_win + best_actress_win + best_dir_win + thtr_age + dvd_age, df)
+```
+
+2.  Then use a function from `olsrr` package to test all possible subset of
+    explanatory variables to find the best model
+
+```{r}
+ols_step_best_subset(m_full_1, metric = "rsquare")
+```
+
+2.  Final model
+
+```{r}
+m_final <- lm(imdb_num_votes ~ critics_score + audience_rating + audience_score + best_pic_nom + best_pic_win + best_dir_win + thtr_age, df)
+summary(m_final)
+```
+
+--------------------------------------------------------------------------------
+
+## Part 5: Prediction
+
+Use data on the dataset to predict
+
+```{r}
+df_test <- df[1:10,]
+predict(m_final, df_test)
+```
+
+--------------------------------------------------------------------------------
+
+## Part 6: Conclusion
